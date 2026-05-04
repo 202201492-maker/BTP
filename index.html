@@ -596,7 +596,7 @@ async function startNFC() {
           try {
             const text = new TextDecoder('utf-8').decode(rec.data);
             const R = parseResistance(text);
-            if (!isNaN(R)) { foundR = R; foundText = text; break; }
+            if (!isNaN(R)) { foundR = R - 1300; foundText = text; break; }
           } catch(e) {}
         }
       }
