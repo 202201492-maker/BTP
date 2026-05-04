@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>SK0 Sensor Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════
+   THEME VARIABLES
+═══════════════════════════════════════════════════ */
+:root {
+  --transition-theme: 0.35s ease;
+}
+
+[data-theme="dark"] {
+  --bg:           #050a0e;
+  --bg2:          #080f15;
+  --panel:        #0c1620;
+  --panel2:       #0f1d2a;
+  --border:       #1a3040;
+  --border2:      #223548;
+  --accent:       #00d4ff;
+  --accent-glow:  rgba(0,212,255,0.28);
+  --accent2:      #ff6b35;
+  --accent3:      #00ff9d;
+  --accent4:      #ffe066;
+  --accent5:      #b47fff;
+  --text:         #c8dde8;
+  --text-dim:     #4a6a7a;
+  --text-mid:     #7a9aaa;
+  --shadow:       0 4px 32px rgba(0,0,0,0.6);
+  --glow:         0 0 22px rgba(0,212,255,0.35);
+  --glow-green:   0 0 18px rgba(0,255,157,0.32);
+  --glow-orange:  0 0 18px rgba(255,107,53,0.32);
+  --glow-yellow:  0 0 18px rgba(255,224,102,0.32);
+  --grid:         rgba(26,48,64,0.7);
+  --mono:         'Share Tech Mono', monospace;
+  --sans:         'DM Sans', sans-serif;
+  --display:      'Syne', sans-serif;
+  --noise-opacity: 0.035;
+  --scan-opacity:  0.06;
+  --bg-grad:      linear-gradient(160deg, #080f15 0%, #050a0e 100%);
+}
+
+[data-theme="light"] {
+  --bg:           #f0f4f7;
+  --bg2:          #e8edf2;
+  --panel:        #ffffff;
+  --panel2:       #f7f9fb;
+  --border:       #2a2a2a;
+  --border2:      #444444;
+  --accent:       #0077cc;
+  --accent-glow:  rgba(0,119,204,0.15);
+  --accent2:      #e05020;
+  --accent3:      #1a9a5f;
+  --accent4:      #b88800;
+  --accent5:      #7a50cc;
+  --text:         #1a2a38;
+  --text-dim:     #8099aa;
+  --text-mid:     #4a6a80;
+  --shadow:       0 4px 24px rgba(0,80,160,0.10);
+  --glow:         0 0 16px rgba(0,119,204,0.18);
+  --glow-green:   0 0 12px rgba(26,154,95,0.18);
+  --glow-orange:  0 0 12px rgba(224,80,32,0.18);
+  --glow-yellow:  0 0 12px rgba(184,136,0,0.15);
+  --grid:         rgba(180,200,220,0.6);
+  --mono:         'Share Tech Mono', monospace;
+  --sans:         'DM Sans', sans-serif;
+  --display:      'Syne', sans-serif;
+  --noise-opacity: 0;
+  --scan-opacity:  0;
+  --bg-grad:      linear-gradient(160deg, #eaf0f6 0%, #f0f4f7 100%);
+}
+
+/* ═══════════════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-weight: 400;
+  overscroll-behavior: none;
+  transition: background var(--transition-theme), color var(--transition-theme);
+}
+
+/* Film grain */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 9999;
+  opacity: var(--noise-opacity);
+  transition: opacity var(--transition-theme);
+}
+
+/* Scanlines */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.065) 2px, rgba(0,0,0,0.065) 4px);
+  pointer-events: none; z-index: 9998;
+  opacity: var(--scan-opacity);
+  transition: opacity var(--transition-theme);
+}
+
+/* ═══════════════════════════════════════════════════
+   LAYOUT
+═══════════════════════════════════════════════════ */
+.app {
+  min-height: 100dvh;
+  display: flex; flex-direction: column;
+  padding: 14px 14px 24px;
+  gap: 12px;
+  max-width: 540px;
+  margin: 0 auto;
+  background: var(--bg-grad);
+}
+
+/* ═══════════════════════════════════════════════════
+   HEADER
+═══════════════════════════════════════════════════ */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: 2.5px solid var(--accent);
+  box-shadow: var(--shadow);
+  position: relative; overflow: hidden;
+  transition: background var(--transition-theme), border-color var(--transition-theme);
+}
+.header::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, var(--accent-glow) 0%, transparent 55%);
+  pointer-events: none;
+}
+
+.header-left { display: flex; align-items: center; gap: 12px; z-index: 1; }
+
+.logo-ring {
+  width: 40px; height: 40px; flex-shrink: 0;
+  border: 1.5px solid var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  background: var(--panel2);
+  transition: border-color var(--transition-theme), background var(--transition-theme);
+}
+.logo-ring::before {
+  content: '';
+  position: absolute; inset: 4px;
+  border: 1px solid var(--accent-glow);
+  border-radius: 1px;
+}
+.logo-ring svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+.header-title {
+  font-family: var(--display);
+  font-size: 15px; font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  text-transform: uppercase;
+  line-height: 1.2;
+  transition: color var(--transition-theme);
+}
+.header-sub {
+  font-family: var(--mono);
+  font-size: 9px; color: var(--text-dim);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-top: 2px;
+  transition: color var(--transition-theme);
+}
+
+.header-right { display: flex; align-items: center; gap: 10px; z-index: 1; }
+
+/* Day/Night toggle */
+.theme-toggle {
+  display: flex; align-items: center; gap: 0;
+  background: var(--panel2);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  overflow: hidden;
+  transition: background var(--transition-theme), border-color var(--transition-theme);
+}
+.theme-btn {
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+  font-size: 9px;
+  text-transform: uppercase;
+  transition: background 0.2s, color 0.2s;
+  line-height: 1;
+}
+.theme-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+[data-theme="dark"] .theme-btn.active { color: #050a0e; }
+
+.header-time {
+  font-family: var(--mono);
+  font-size: 10px; color: var(--text-dim);
+  text-align: right; line-height: 1.7;
+  transition: color var(--transition-theme);
+}
+
+/* ═══════════════════════════════════════════════════
+   NFC WARNING
+═══════════════════════════════════════════════════ */
+.nfc-unsupported {
+  display: none; padding: 14px 16px;
+  background: rgba(255,51,102,0.07);
+  border: 1px solid rgba(255,51,102,0.35);
+  font-family: var(--mono); font-size: 10.5px;
+  line-height: 2; color: #ff3366;
+}
+.nfc-unsupported strong { display: block; margin-bottom: 4px; font-size: 11px; }
+.nfc-unsupported a { color: inherit; text-decoration: underline; }
+
+/* ═══════════════════════════════════════════════════
+   DAY SELECTOR
+═══════════════════════════════════════════════════ */
+.day-selector {
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+  flex-wrap: wrap;
+  box-shadow: var(--shadow);
+  transition: background var(--transition-theme), border-color var(--transition-theme);
+}
+.day-label {
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.2em; color: var(--text-dim);
+  text-transform: uppercase; white-space: nowrap;
+  flex-shrink: 0;
+}
+.day-input-wrap { display: flex; align-items: center; gap: 8px; }
+.day-input {
+  width: 70px; padding: 6px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-family: var(--mono); font-size: 13px;
+  text-align: center;
+  transition: border-color 0.2s, background var(--transition-theme), color var(--transition-theme);
+  outline: none;
+  -webkit-appearance: none; -moz-appearance: textfield;
+  appearance: none;
+}
+.day-input:focus { border-color: var(--accent); }
+.day-hint {
+  font-family: var(--mono); font-size: 9px;
+  color: var(--text-dim); letter-spacing: 0.08em;
+  flex: 1; min-width: 120px;
+}
+.day-drift-preview {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--accent4); white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════
+   SCAN BUTTON
+═══════════════════════════════════════════════════ */
+.scan-btn {
+  width: 100%; padding: 17px;
+  background: transparent;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--mono); font-size: 12px;
+  letter-spacing: 0.25em; text-transform: uppercase;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  transition: background 0.2s, box-shadow 0.2s, border-color var(--transition-theme), color var(--transition-theme);
+  position: relative; overflow: hidden;
+}
+.scan-btn::before {
+  content: '';
+  position: absolute; left: -100%; top: 0; width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+  transition: left 0.6s;
+}
+.scan-btn:active::before, .scan-btn.scanning::before { left: 140%; }
+.scan-btn:active { background: var(--accent-glow); box-shadow: var(--glow); }
+.scan-btn.scanning { border-color: var(--accent3); color: var(--accent3); pointer-events: none; }
+.scan-btn.scanning .scan-icon { animation: spin-ring 2s linear infinite; }
+.scan-icon { font-size: 17px; line-height: 1; display: inline-block; }
+@keyframes spin-ring { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+
+/* ═══════════════════════════════════════════════════
+   STATUS BAR
+═══════════════════════════════════════════════════ */
+.status-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  background: var(--panel); border: 1px solid var(--border);
+  font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  transition: border-color 0.3s, box-shadow 0.3s, background var(--transition-theme);
+}
+.status-bar.state-scanning  { border-color: var(--border2); }
+.status-bar.state-present   { border-color: var(--accent3); box-shadow: var(--glow-green); }
+.status-bar.state-absent    { border-color: var(--accent2); box-shadow: var(--glow-orange); }
+.status-bar.state-error     { border-color: #ff3366; }
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; transition: background 0.3s, box-shadow 0.3s; }
+.state-scanning .status-dot { background: var(--text-dim); animation: pls 1.8s infinite; }
+.state-present  .status-dot { background: var(--accent3); box-shadow: 0 0 8px var(--accent3); }
+.state-absent   .status-dot { background: var(--accent2); animation: plo 1s infinite; }
+.state-error    .status-dot { background: #ff3366; }
+@keyframes pls { 0%,100%{opacity:0.3} 50%{opacity:1} }
+@keyframes plo { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+#status-text { flex: 1; color: var(--text); }
+.nfc-indicator { margin-left: auto; opacity: 0; transition: opacity 0.3s; color: var(--accent3); font-size: 14px; }
+.state-present .nfc-indicator { opacity: 1; animation: ping 0.8s ease-out; }
+@keyframes ping { 0%{transform:scale(1.8);opacity:0} 100%{transform:scale(1);opacity:1} }
+
+/* ═══════════════════════════════════════════════════
+   ABSENT BANNER
+═══════════════════════════════════════════════════ */
+.absent-banner {
+  display: none;
+  padding: 10px 16px;
+  background: rgba(255,107,53,0.06);
+  border: 1px solid rgba(255,107,53,0.3);
+  font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: 0.06em; color: var(--accent2);
+  line-height: 1.9;
+  transition: background var(--transition-theme);
+}
+.absent-banner.visible { display: block; }
+.absent-banner strong { color: var(--text); }
+
+/* ═══════════════════════════════════════════════════
+   PRIMARY RESISTANCE DISPLAY
+═══════════════════════════════════════════════════ */
+.resistance-card {
+  padding: 22px 18px 18px;
+  background: var(--panel); border: 1px solid var(--border);
+  position: relative; overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: background var(--transition-theme), border-color var(--transition-theme);
+}
+.resistance-card::before {
+  content: 'MEASURED RESISTANCE';
+  position: absolute; top: 10px; left: 16px;
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.25em; color: var(--text-dim);
+  text-transform: uppercase;
+}
+.resistance-card::after {
+  content: '';
+  position: absolute; top: 0; right: 0;
+  width: 90px; height: 90px;
+  background: radial-gradient(circle at top right, var(--accent-glow), transparent 70%);
+  pointer-events: none;
+}
+
+.r-val-group { display: flex; align-items: baseline; gap: 4px; margin-top: 18px; }
+.r-value {
+  font-family: var(--mono);
+  font-size: clamp(46px, 14vw, 72px);
+  color: var(--accent); line-height: 1;
+  text-shadow: var(--glow);
+  transition: color 0.4s, text-shadow 0.4s;
+  letter-spacing: -2px;
+}
+.r-value.stale { color: var(--text-dim); text-shadow: none; }
+.r-unit {
+  font-family: var(--mono); font-size: 16px;
+  color: var(--text-dim); align-self: flex-end;
+  margin-bottom: 6px; letter-spacing: 0.05em;
+  transition: color var(--transition-theme);
+}
+
+.r-meta {
+  margin-top: 10px; display: flex; gap: 16px; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.12em; color: var(--text-dim);
+  text-transform: uppercase;
+}
+.r-meta span { display: flex; gap: 5px; align-items: center; }
+.r-meta .val { color: var(--text); font-size: 10px; }
+
+/* ═══════════════════════════════════════════════════
+   ML RESULT CARDS (2-col grid)
+═══════════════════════════════════════════════════ */
+.ml-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.ml-box {
+  padding: 14px 14px 12px;
+  background: var(--panel); border: 1px solid var(--border);
+  position: relative; overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: background var(--transition-theme), border-color var(--transition-theme);
+}
+.ml-box-label {
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.2em; color: var(--text-dim);
+  text-transform: uppercase; margin-bottom: 10px;
+}
+.ml-big {
+  font-family: var(--mono);
+  font-size: clamp(28px, 9vw, 42px);
+  line-height: 1; letter-spacing: -1px;
+  transition: color 0.4s, text-shadow 0.4s;
+}
+.ml-big.stale { color: var(--text-dim) !important; text-shadow: none !important; }
+.ml-unit { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+.ml-box.corrected { border-left: 2.5px solid var(--accent3); }
+.ml-box.temp-box  { border-left: 2.5px solid var(--accent); }
+.ml-box.drift-box { border-left: 2.5px solid var(--accent4); }
+
+.ml-box.corrected .ml-big { color: var(--accent3); text-shadow: var(--glow-green); }
+.ml-box.temp-box  .ml-big { color: var(--accent);  text-shadow: var(--glow); }
+.ml-box.drift-box .ml-big { color: var(--accent4); text-shadow: var(--glow-yellow); }
+
+/* Wider 3-col grid for 3 values */
+.ml-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+/* ═══════════════════════════════════════════════════
+   STAT ROW
+═══════════════════════════════════════════════════ */
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.stat-box {
+  padding: 10px 12px;
+  background: var(--panel); border: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 4px;
+  box-shadow: var(--shadow);
+  transition: background var(--transition-theme), border-color var(--transition-theme);
+}
+.stat-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: var(--text-dim); text-transform: uppercase; }
+.stat-val   { font-family: var(--mono); font-size: 17px; color: var(--text); line-height: 1; }
+.stat-val.ca { color: var(--accent); }
+.stat-val.cg { color: var(--accent3); }
+.stat-val.co { color: var(--accent2); }
+
+/* ═══════════════════════════════════════════════════
+   CHART PANEL
+═══════════════════════════════════════════════════ */
+.chart-panel {
+  padding: 14px 14px 10px;
+  background: var(--panel); border: 1px solid var(--border);
+  position: relative; flex: 1; min-height: 240px;
+  box-shadow: var(--shadow);
+  transition: background var(--transition-theme), border-color var(--transition-theme);
+}
+.chart-heading {
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.25em; color: var(--text-dim);
+  text-transform: uppercase; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 8px;
+}
+.chart-heading::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.chart-legend {
+  display: flex; gap: 16px; margin-bottom: 8px;
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.1em; color: var(--text-dim);
+  flex-wrap: wrap;
+}
+.ll { display: inline-block; width: 16px; height: 2px; vertical-align: middle; margin-right: 4px; border-radius: 1px; }
+.ll.raw  { background: var(--accent); opacity: 0.55; }
+.ll.corr { background: var(--accent3); }
+.chart-wrap { position: relative; height: 190px; }
+
+/* ═══════════════════════════════════════════════════
+   DEBUG LOG
+═══════════════════════════════════════════════════ */
+.log-panel {
+  padding: 12px 14px;
+  background: var(--panel); border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: background var(--transition-theme), border-color var(--transition-theme);
+}
+#debug-log {
+  font-family: var(--mono); font-size: 9.5px;
+  color: var(--text-dim); line-height: 1.9;
+  max-height: 160px; overflow-y: auto;
+  word-break: break-all;
+  transition: color var(--transition-theme);
+}
+.log-actions { display: flex; gap: 8px; margin-top: 10px; }
+.log-btn {
+  flex: 1; padding: 9px;
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--text-dim);
+  font-family: var(--mono); font-size: 9.5px;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color var(--transition-theme), border-color var(--transition-theme);
+}
+.log-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ═══════════════════════════════════════════════════
+   FOOTER
+═══════════════════════════════════════════════════ */
+.footer {
+  font-family: var(--mono); font-size: 8.5px;
+  letter-spacing: 0.14em; color: var(--text-dim);
+  text-align: center; padding-bottom: 2px;
+  text-transform: uppercase;
+  transition: color var(--transition-theme);
+}
+
+/* ═══════════════════════════════════════════════════
+   DIVIDER LABEL
+═══════════════════════════════════════════════════ */
+.section-div {
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.2em; color: var(--text-dim);
+  text-transform: uppercase;
+  display: flex; align-items: center; gap: 8px;
+  opacity: 0.7;
+}
+.section-div::before, .section-div::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ═══════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES
+═══════════════════════════════════════════════════ */
+[data-theme="light"] .r-value { text-shadow: none; }
+[data-theme="light"] .ml-box.corrected .ml-big { text-shadow: none; }
+[data-theme="light"] .ml-box.temp-box  .ml-big { text-shadow: none; }
+[data-theme="light"] .ml-box.drift-box .ml-big { text-shadow: none; }
+[data-theme="light"] .header::before { opacity: 0.5; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── HEADER ── -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-ring">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6">
+          <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+          <path d="M7 12a5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-5-5 5 5 0 0 0-5 5z"/>
+          <circle cx="12" cy="12" r="1.5" fill="var(--accent)"/>
+        </svg>
+      </div>
+      <div>
+        <div class="header-title">SK0 Monitor</div>
+        <div class="header-sub">Sensor Drift Monitor</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle">
+        <button class="theme-btn active" id="btn-light" onclick="setTheme('light')">☀ Day</button>
+        <button class="theme-btn" id="btn-dark" onclick="setTheme('dark')">☾ Night</button>
+      </div>
+      <div class="header-time">
+        <div id="clock">--:--:--</div>
+        <div id="date-str">----</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── NFC WARNING ── -->
+  <div class="nfc-unsupported" id="nfc-warning">
+    <strong>⚠ WEB NFC NOT SUPPORTED</strong>
+    Web NFC requires Chrome for Android 89+.<br>
+    Enable: Android Settings → Connections → NFC → ON.<br>
+    iOS Safari does not support Web NFC.<br>
+    <a href="https://developer.chrome.com/docs/capabilities/nfc" target="_blank">→ Web NFC docs</a>
+  </div>
+
+  <!-- ── DAY SELECTOR ── -->
+  <div class="day-selector">
+    <span class="day-label">Deployment Day:</span>
+    <div class="day-input-wrap">
+      <input class="day-input" id="day-input" type="number" min="1" max="365" value="5" oninput="onDayChange()">
+    </div>
+    <span class="day-hint">Day since sensor first deployed</span>
+    <span class="day-drift-preview" id="day-drift-preview">Drift offset: +9.6 Ω</span>
+  </div>
+
+  <!-- ── SCAN BUTTON ── -->
+  <button class="scan-btn" id="scan-btn" onclick="handleScanButton()">
+    <span class="scan-icon">◈</span>
+    <span id="scan-btn-text">TAP TO START NFC SCAN</span>
+  </button>
+
+  <!-- ── STATUS BAR ── -->
+  <div class="status-bar state-scanning" id="status-bar">
+    <div class="status-dot"></div>
+    <span id="status-text">Press the button above to begin scanning</span>
+    <span class="nfc-indicator">◈</span>
+  </div>
+
+  <!-- ── ABSENT BANNER ── -->
+  <div class="absent-banner" id="absent-banner">
+    ◉ CARD OUT OF RANGE &nbsp;·&nbsp; Last: <strong id="absent-r">—</strong> Ω &nbsp;·&nbsp; <strong id="absent-ago">—</strong>
+  </div>
+
+  <!-- ── HERO: CORRECTED TEMPERATURE ── -->
+  <div class="hero-card">
+    <div class="hero-label">Corrected Temperature</div>
+    <div class="hero-val-row">
+      <div class="hero-val stale" id="temp-display">--.-</div>
+      <div class="hero-unit">°C</div>
+      <div class="hero-error stale" id="temp-error"></div>
+    </div>
+    <div class="hero-sub">ML drift-corrected estimate</div>
+  </div>
+
+  <!-- ── SECONDARY ROW: uncorrected temp + raw resistance ── -->
+  <div class="ml-grid">
+    <div class="ml-box uncorr-box">
+      <div class="ml-box-label">Without Algorithm</div>
+      <div class="ml-big stale" id="temp-raw-display">--.-</div>
+      <div class="ml-unit">°C (sensor raw)</div>
+    </div>
+    <div class="ml-box resist-box">
+      <div class="ml-box-label">Resistance Measured</div>
+      <div class="ml-big stale" id="r-display">----</div>
+      <div class="ml-unit">Ω (raw)</div>
+    </div>
+  </div>
+
+  <!-- ── CHART ── -->
+  <div class="chart-panel">
+    <div class="chart-heading">LIVE TEMPERATURE GRAPH</div>
+    <div class="chart-legend">
+      <span><span class="ll raw"></span>WITHOUT ALGORITHM</span>
+      <span><span class="ll corr"></span>CORRECTED</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="mainChart"></canvas>
+    </div>
+  </div>
+
+  <!-- ── STATS ── -->
+  <div class="section-div">SESSION STATS</div>
+  <div class="stat-row">
+    <div class="stat-box">
+      <div class="stat-label">Data Points</div>
+      <div class="stat-val ca" id="stat-count">0</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">T Min °C</div>
+      <div class="stat-val cg" id="stat-tmin">—</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">T Max °C</div>
+      <div class="stat-val co" id="stat-tmax">—</div>
+    </div>
+  </div>
+
+  <div class="footer">SK0 · STEINHART-HART ML · WEB NFC API · MIFARE CLASSIC 1K · BLOCK 4</div>
+
+</div><!-- /.app -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  CALIBRATION MODEL — Steinhart-Hart modified polynomial
+//  Trained on Day-1 + Day-4 stable plateau data (n=344)
+//  R² = 0.9979  |  Cal-RMSE = 0.37°C  |  Val-MAE(day4) = 0.57°C
+//
+//  Formula: T(°C) = A + B·ln(R) + C·ln(R)² + D·ln(R)³
+//  Valid range: 1600 – 4300 Ω  →  ~15°C – 58°C
+// ═══════════════════════════════════════════════════════════════════
+const SH_A =  6756.3340;
+const SH_B = -2308.8107;
+const SH_C =   265.3798;
+const SH_D =   -10.2324;
+
+// Per-deployment-day R offset to SUBTRACT from R_measured
+// Derived from per-day median (R_measured – R_expected_from_T)
+// Days not in table are interpolated/extrapolated
+const DRIFT_TABLE = {
+   1:  50.4,
+   2: -247.7,   // session had unusually low R readings
+   3:  87.9,
+   4:   9.6,    // reference day — nearly zero drift
+   5: 359.4,    // high-drift session
+   6: -10.2,
+   8:  33.4,
+   9: 149.1,
+  10: 188.9,
+  12:  38.1,
+};
+
+const CAL_R_MIN = 1600;
+const CAL_R_MAX = 4300;
+
+// ── Core math ──────────────────────────────────────────────────────
+function shModel(R) {
+  const lnR = Math.log(Math.max(R, 1));
+  return SH_A + SH_B * lnR + SH_C * lnR * lnR + SH_D * lnR * lnR * lnR;
+}
+
+function getDriftForDay(day) {
+  const days   = Object.keys(DRIFT_TABLE).map(Number).sort((a,b) => a-b);
+  const drifts = days.map(d => DRIFT_TABLE[d]);
+  if (day <= days[0]) return drifts[0];
+  if (day >= days[days.length-1]) {
+    // linear extrapolation from last 3 points
+    const n = days.length;
+    const slope = (drifts[n-1] - drifts[n-3]) / (days[n-1] - days[n-3]);
+    return drifts[n-1] + slope * (day - days[n-1]);
+  }
+  for (let i = 0; i < days.length - 1; i++) {
+    if (day >= days[i] && day <= days[i+1]) {
+      const t = (day - days[i]) / (days[i+1] - days[i]);
+      return drifts[i] + t * (drifts[i+1] - drifts[i]);
+    }
+  }
+  return 0;
+}
+
+function correctAndConvert(R_raw, day) {
+  const drift    = getDriftForDay(day);
+  const R_corr   = R_raw - drift;
+  const T_est    = shModel(R_corr);
+  const inRange  = R_corr >= CAL_R_MIN && R_corr <= CAL_R_MAX;
+  const T_clipped = Math.min(Math.max(T_est, 5), 80);
+  return { R_corr, T_est: T_clipped, drift, inRange };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  THEME
+// ═══════════════════════════════════════════════════════════════════
+function setTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('btn-light').classList.toggle('active', t === 'light');
+  document.getElementById('btn-dark').classList.toggle('active',  t === 'dark');
+  updateChartColors();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CLOCK
+// ═══════════════════════════════════════════════════════════════════
+function updateClock() {
+  const n = new Date();
+  document.getElementById('clock').textContent    = n.toLocaleTimeString('en-GB', {hour12:false});
+  document.getElementById('date-str').textContent = n.toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'2-digit'});
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ═══════════════════════════════════════════════════════════════════
+//  DAY SELECTOR
+// ═══════════════════════════════════════════════════════════════════
+function onDayChange() {
+  const day = parseFloat(document.getElementById('day-input').value) || 4;
+  const drift = getDriftForDay(day);
+  const sign = drift >= 0 ? '+' : '';
+  document.getElementById('day-drift-preview').textContent = `Drift offset: ${sign}${drift.toFixed(1)} Ω`;
+}
+onDayChange();
+
+// ═══════════════════════════════════════════════════════════════════
+//  CHART
+// ═══════════════════════════════════════════════════════════════════
+function getCSSVar(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+const ctx = document.getElementById('mainChart').getContext('2d');
+
+const chartData = {
+  labels: [],
+  datasets: [
+    {
+      label: 'Raw R (Ω)',
+      data: [],
+      borderColor: 'rgba(0,212,255,0.55)',
+      backgroundColor: 'transparent',
+      borderWidth: 1.5, borderDash: [5,3],
+      pointRadius: 2, pointBackgroundColor: 'rgba(0,212,255,0.55)',
+      pointBorderColor: 'transparent',
+      tension: 0.35,
+    },
+    {
+      label: 'Corrected R (Ω)',
+      data: [],
+      borderColor: '#00ff9d',
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      pointRadius: 3, pointBackgroundColor: '#00ff9d',
+      pointBorderColor: 'transparent',
+      tension: 0.35,
+    }
+  ]
+};
+
+const mainChart = new Chart(ctx, {
+  type: 'line',
+  data: chartData,
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 350 },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#0c1620',
+        borderColor: '#1a3040', borderWidth: 1,
+        titleColor: '#4a6a7a', bodyColor: '#c8dde8',
+        titleFont: { family:"'Share Tech Mono',monospace", size: 9 },
+        bodyFont:  { family:"'Share Tech Mono',monospace", size: 11 },
+        callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} Ω` }
+      }
+    },
+    scales: {
+      x: {
+        ticks: { color:'#4a6a7a', font:{family:"'Share Tech Mono',monospace",size:8}, maxTicksLimit:6, maxRotation:0 },
+        grid:  { color: 'rgba(26,48,64,0.7)' }
+      },
+      y: {
+        ticks: { color:'#4a6a7a', font:{family:"'Share Tech Mono',monospace",size:8}, callback: v => Math.round(v) },
+        grid:  { color: 'rgba(26,48,64,0.7)' }
+      }
+    }
+  }
+});
+
+function updateChartColors() {
+  const theme = document.documentElement.getAttribute('data-theme');
+  const isDark = theme === 'dark';
+  const gridC  = isDark ? 'rgba(26,48,64,0.7)' : 'rgba(180,200,220,0.6)';
+  const tickC  = isDark ? '#4a6a7a' : '#8099aa';
+  const ttBg   = isDark ? '#0c1620' : '#ffffff';
+  const ttBrd  = isDark ? '#1a3040' : '#d0dce8';
+  const ttBody = isDark ? '#c8dde8' : '#1a2a38';
+  const rawC   = isDark ? 'rgba(0,212,255,0.55)' : 'rgba(0,119,204,0.55)';
+  const corrC  = isDark ? '#00ff9d' : '#1a9a5f';
+
+  chartData.datasets[0].borderColor = rawC;
+  chartData.datasets[0].pointBackgroundColor = rawC;
+  chartData.datasets[1].borderColor = corrC;
+  chartData.datasets[1].pointBackgroundColor = corrC;
+
+  mainChart.options.scales.x.ticks.color = tickC;
+  mainChart.options.scales.y.ticks.color = tickC;
+  mainChart.options.scales.x.grid.color = gridC;
+  mainChart.options.scales.y.grid.color = gridC;
+  mainChart.options.plugins.tooltip.backgroundColor = ttBg;
+  mainChart.options.plugins.tooltip.borderColor = ttBrd;
+  mainChart.options.plugins.tooltip.bodyColor = ttBody;
+  mainChart.update();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DEBUG LOG
+// ═══════════════════════════════════════════════════════════════════
+const logLines = [];
+function dbg(...args) {
+  const line = new Date().toLocaleTimeString('en-GB',{hour12:false}) + '  ' + args.join(' ');
+  logLines.push(line);
+  const el = document.getElementById('debug-log');
+  if (el) { el.innerHTML += escHtml(line) + '<br>'; el.scrollTop = el.scrollHeight; }
+  console.log(line);
+}
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function downloadLog() {
+  const blob = new Blob([logLines.join('\n')], {type:'text/plain'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `sk0-nfc-log-${Date.now()}.txt`; a.click();
+}
+function clearLog() { logLines.length = 0; document.getElementById('debug-log').innerHTML = ''; dbg('Log cleared.'); }
+
+// ═══════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════
+let readCount = 0, rMin = Infinity, rMax = -Infinity;
+let tMin = Infinity, tMax = -Infinity, tSum = 0;
+let lastReadTime = null, lastReadR = null;
+let cardInRange = false, presenceTimer = null, absentTicker = null;
+const PRESENCE_TIMEOUT = 12000;
+
+// ═══════════════════════════════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════════════════════════════
+function setStatus(state, msg) {
+  document.getElementById('status-bar').className = 'status-bar state-' + state;
+  document.getElementById('status-text').textContent = msg;
+}
+function markStale() {
+  ['r-display','r-corr-display','temp-display','drift-display','conf-display']
+    .forEach(id => document.getElementById(id).classList.add('stale'));
+}
+function markFresh() {
+  ['r-display','r-corr-display','temp-display','drift-display','conf-display']
+    .forEach(id => document.getElementById(id).classList.remove('stale'));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PRESENCE TIMER
+// ═══════════════════════════════════════════════════════════════════
+function resetPresenceTimer() {
+  if (presenceTimer) clearTimeout(presenceTimer);
+  presenceTimer = setTimeout(onCardGone, PRESENCE_TIMEOUT);
+}
+
+function startAbsentTicker(R) {
+  const banner = document.getElementById('absent-banner');
+  const ago    = document.getElementById('absent-ago');
+  const rEl    = document.getElementById('absent-r');
+  if (absentTicker) clearInterval(absentTicker);
+  banner.classList.add('visible');
+  rEl.textContent = Math.round(R);
+  absentTicker = setInterval(() => {
+    if (!lastReadTime) return;
+    const s = Math.floor((Date.now() - lastReadTime) / 1000);
+    const m = Math.floor(s / 60);
+    ago.textContent = m > 0 ? `${m}m ${s%60}s ago` : `${s}s ago`;
+  }, 1000);
+}
+function stopAbsentTicker() {
+  if (absentTicker) { clearInterval(absentTicker); absentTicker = null; }
+  document.getElementById('absent-banner').classList.remove('visible');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CORE: NEW RESISTANCE READING
+// ═══════════════════════════════════════════════════════════════════
+function onNewResistance(R_raw, uidStr) {
+  document.getElementById('scan-btn').style.display = 'none';
+  cardInRange = true;
+  lastReadTime = Date.now();
+  lastReadR = R_raw;
+  stopAbsentTicker();
+  resetPresenceTimer();
+  setStatus('present', `Card in range — R = ${R_raw.toFixed(1)} Ω`);
+
+  const day = parseFloat(document.getElementById('day-input').value) || 4;
+  const { R_corr, T_est, drift, inRange } = correctAndConvert(R_raw, day);
+
+  // Raw R
+  document.getElementById('r-display').textContent = Math.round(R_raw);
+  // Corrected R
+  document.getElementById('r-corr-display').textContent = Math.round(R_corr);
+  // Temperature
+  document.getElementById('temp-display').textContent = T_est.toFixed(1);
+  // Drift
+  const dSign = drift >= 0 ? '+' : '';
+  document.getElementById('drift-display').textContent = dSign + Math.round(drift);
+  // Confidence
+  document.getElementById('conf-display').textContent = inRange ? 'YES' : 'OUT';
+  markFresh();
+
+  // Meta
+  document.getElementById('last-read-time').textContent = new Date().toLocaleTimeString('en-GB',{hour12:false});
+  if (uidStr) document.getElementById('card-uid').textContent = uidStr.substring(0,12) + (uidStr.length>12?'…':'');
+
+  // Stats
+  readCount++;
+  if (R_raw < rMin) rMin = R_raw;
+  if (R_raw > rMax) rMax = R_raw;
+  if (T_est < tMin) tMin = T_est;
+  if (T_est > tMax) tMax = T_est;
+  tSum += T_est;
+  document.getElementById('stat-count').textContent = readCount;
+  document.getElementById('stat-rmin').textContent  = Math.round(rMin);
+  document.getElementById('stat-rmax').textContent  = Math.round(rMax);
+  document.getElementById('stat-tmin').textContent  = tMin.toFixed(1);
+  document.getElementById('stat-tmax').textContent  = tMax.toFixed(1);
+  document.getElementById('stat-tmean').textContent = (tSum / readCount).toFixed(1);
+
+  // Chart
+  const label = new Date().toLocaleTimeString('en-GB',{hour12:false});
+  chartData.labels.push(label);
+  chartData.datasets[0].data.push(parseFloat(R_raw.toFixed(1)));
+  chartData.datasets[1].data.push(parseFloat(R_corr.toFixed(1)));
+  if (chartData.labels.length > 80) {
+    chartData.labels.shift();
+    chartData.datasets[0].data.shift();
+    chartData.datasets[1].data.shift();
+  }
+  mainChart.update();
+
+  dbg(`R_raw=${R_raw.toFixed(1)} R_corr=${R_corr.toFixed(1)} T=${T_est.toFixed(2)}°C drift=${dSign}${drift.toFixed(1)} day=${day} inRange=${inRange}`);
+}
+
+function onCardGone() {
+  if (!cardInRange) return;
+  cardInRange = false;
+  if (presenceTimer) { clearTimeout(presenceTimer); presenceTimer = null; }
+  markStale();
+  setStatus('absent', 'Card out of range');
+  if (lastReadR !== null) startAbsentTicker(lastReadR);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  RESISTANCE PARSING
+//  Arduino writes: "1234.5 ohm" as NDEF Text record
+// ═══════════════════════════════════════════════════════════════════
+function parseResistance(text) {
+  if (!text) return NaN;
+  const clean = text.trim().replace(/[^\d.]/g, '');
+  const val = parseFloat(clean);
+  return (isNaN(val) || val <= 0) ? NaN : val;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  WEB NFC
+// ═══════════════════════════════════════════════════════════════════
+async function handleScanButton() {
+  if (!('NDEFReader' in window)) {
+    document.getElementById('nfc-warning').style.display = 'block';
+    setStatus('error', 'Web NFC not supported — use Chrome on Android');
+    dbg('ERROR: NDEFReader not available in this browser');
+    return;
+  }
+  const btn = document.getElementById('scan-btn');
+  btn.classList.add('scanning');
+  document.getElementById('scan-btn-text').textContent = 'SCANNING — HOLD CARD NEAR…';
+  setStatus('scanning', 'NFC scan active — hold card to phone');
+  await startNFC();
+}
+
+async function startNFC() {
+  try {
+    const reader = new NDEFReader();
+    dbg('NDEFReader created, requesting scan...');
+
+    reader.onerror = (event) => {
+      dbg('NFC read error:', event.message || JSON.stringify(event));
+      onCardGone();
+    };
+
+    reader.onreading = (event) => {
+      const serial = event.serialNumber || '';
+      const nRec   = event.message.records.length;
+      dbg(`--- CARD READ serial=${serial} records=${nRec}`);
+
+      let foundR = NaN;
+      let foundText = '';
+
+      for (let ri = 0; ri < nRec; ri++) {
+        const rec = event.message.records[ri];
+        const mt  = rec.mediaType   || '';
+        const enc = rec.encoding    || 'utf-8';
+        const rt  = rec.recordType || '';
+
+        dbg(`rec[${ri}] type=${rt} mediaType=${mt} enc=${enc} bytes=${rec.data ? rec.data.byteLength : 0}`);
+
+        // Log raw bytes
+        if (rec.data) {
+          let hex = '';
+          for (let b = 0; b < Math.min(rec.data.byteLength, 32); b++) {
+            const v = rec.data.getUint8(b);
+            hex += (v < 16 ? '0' : '') + v.toString(16) + ':';
+          }
+          dbg(`  raw: ${hex}`);
+        }
+
+        // Strategy 1: Well-known text record
+        if (rt === 'text' && rec.data) {
+          try {
+            // Skip the first 3 bytes (NDEF text header: encoding + lang length + lang code)
+            const raw = rec.data;
+            // Try reading as plain UTF-8 first
+            let text = '';
+            try {
+              text = new TextDecoder('utf-8').decode(raw);
+            } catch(e) { }
+            dbg(`  text(raw)="${text.replace(/[^\x20-\x7e]/g,'?')}"`);
+
+            // Strip NDEF text record header bytes (status byte + lang bytes)
+            if (raw.byteLength > 3) {
+              const statusByte = raw.getUint8(0);
+              const langLen    = statusByte & 0x3F;
+              const payloadStart = 1 + langLen;
+              const encType = (statusByte & 0x80) ? 'utf-16' : 'utf-8';
+              const payload = new TextDecoder(encType).decode(raw.slice(payloadStart));
+              dbg(`  payload="${payload.replace(/[^\x20-\x7e]/g,'?')}" lang-skip=${langLen}`);
+              const R = parseResistance(payload);
+              if (!isNaN(R)) { foundR = R; foundText = payload; break; }
+            }
+            const R = parseResistance(text);
+            if (!isNaN(R)) { foundR = R; foundText = text; break; }
+          } catch(e) { dbg(`  text decode error: ${e}`); }
+        }
+
+        // Strategy 2: MIME type text/plain or application/octet-stream
+        if ((rt === 'mime' || mt.includes('text') || mt.includes('octet')) && rec.data) {
+          try {
+            const text = new TextDecoder('utf-8').decode(rec.data);
+            dbg(`  mime-text="${text.replace(/[^\x20-\x7e]/g,'?')}"`);
+            const R = parseResistance(text);
+            if (!isNaN(R)) { foundR = R; foundText = text; break; }
+          } catch(e) { dbg(`  mime decode error: ${e}`); }
+        }
+
+        // Strategy 3: Unknown — try raw bytes as ASCII
+        if (rec.data) {
+          try {
+            const text = new TextDecoder('utf-8').decode(rec.data);
+            const R = parseResistance(text);
+            if (!isNaN(R)) {
+              dbg(`  raw-fallback R=${R} from="${text.replace(/[^\x20-\x7e]/g,'?')}"`);
+              foundR = R; foundText = text; break;
+            }
+          } catch(e) {}
+        }
+      } // end record loop
+
+      if (!isNaN(foundR) && foundR > 100 && foundR < 100000) {
+        dbg(`✓ Parsed R=${foundR.toFixed(1)} Ω from "${foundText.trim()}"`);
+        onNewResistance(foundR, serial);
+      } else {
+        dbg(`✗ No valid resistance found (foundR=${foundR})`);
+        resetPresenceTimer();
+        setStatus('present', 'Card in range — no resistance data found');
+      }
+    };
+
+    await reader.scan();
+    dbg('NDEFReader.scan() started successfully');
+
+  } catch (err) {
+    dbg(`NFC start error: ${err.name}: ${err.message}`);
+    setStatus('error', `NFC error: ${err.message}`);
+    const btn = document.getElementById('scan-btn');
+    btn.classList.remove('scanning');
+    document.getElementById('scan-btn-text').textContent = 'TAP TO RETRY NFC SCAN';
+  }
+}
+</script>
+</body>
+</html>
